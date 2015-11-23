@@ -6,8 +6,9 @@ from operator import itemgetter
 
 
 #location of all the output files to be drawn
-directoryN = r"D:\Documents\Academics\Project\Project\outputFiles\newDesign\withTime\shortest_time\naive"
-directoryD = r"D:\Documents\Academics\Project\Project\outputFiles\newDesign\withTime\shortest_time\david"
+directoryN = r"D:\Documents\Academics\Project\Project\outputFiles\newDesign\withTime\naive"
+directoryD = r"D:\Documents\Academics\Project\Project\outputFiles\newDesign\withTime\david"
+directoryR = r"D:\Documents\Academics\Project\Project\outputFiles\recursive"
 
 
 
@@ -180,9 +181,56 @@ def get_xbounds(lines):
 
 
 
+
+
+def dsply(file, fig, powerCap, row, col, pos, ax):
+    f = open(file, 'r')
+    lines = getLines(f)
+    position = row*100+col*10+pos
+    ax = fig.add_subplot(position, sharex = ax)
+    for line in lines:
+        w = float(line[6]) - float(line[5])
+        h = float(line[4])
+        x = float(line[5])
+        y = float(line[7])
+        add_rectangle(ax, x, y, w, h)
+        plt.plot([x, x],[0,powerCap], '1') 
+    ax.axhline(y = powerCap, c = 'r', linewidth=1, zorder=5)
     
+    f.close()
+    return    
     
+def dsplyN(file, fig, powerCap, row, col, pos):
+    f = open(file, 'r')
+    lines = getLines(f)
     
+    position = row*100+col*10+pos
+    ax = fig.add_subplot(position)
+    for line in lines:
+        w = float(line[6]) - float(line[5])
+        h = float(line[4])
+        x = float(line[5])
+        y = float(line[7])
+        add_rectangle(ax, x, y, w, h)
+    ax.axhline(y = powerCap, c = 'r', linewidth=1, zorder=5)
+    
+    f.close()
+    return ax
+
+def displayRecursive(file, powerCap, numApps, fig, axN):
+    font = 12 #fontsize for the labels
+    f = open(file, 'r')
+    lines = getLines(f)
+    ax = fig.add_subplot(313, sharex = axN)
+    for line in lines:
+        w = float(line[6]) - float(line[5])
+        h = float(line[4])
+        x = float(line[5])
+        y = float(line[7])
+        add_rectangle(ax, x, y, w, h)
+    ax.axhline(y = powerCap, c = 'r', linewidth=1, zorder=5)
+    f.close()
+    return
 
 def displayDavid(file, powerCap, numApps, fig, axN):  
     font = 12 #fontsize for the labels
@@ -195,7 +243,7 @@ def displayDavid(file, powerCap, numApps, fig, axN):
         return
     xcoords, ycoords, xbounds, xmax = get_xbounds(lines)
     ymax = powerCap
-    ax = fig.add_subplot(212, sharex = axN)
+    ax = fig.add_subplot(312, sharex = axN)
     coord = 0
     for line in lines:
 
@@ -228,7 +276,7 @@ def displayNaive(file,powerCap, numApps, fig):
     ymax = powerCap
     x = 0
     y = 0
-    ax = fig.add_subplot(211)
+    ax = fig.add_subplot(311)
     previousY = 0
     for line in lines:
         w = 0
@@ -253,14 +301,16 @@ def displayNaive(file,powerCap, numApps, fig):
 
   
 
-def display(dirN, dirD, powerCap, numTasks):
+def display(dirN, dirD, dirR, powerCap, numTasks):
     fig = init_figure()
     file = str(powerCap)+"-"+str(numTasks)
-    ax = displayNaive(os.path.join(dirN, file), powerCap, numTasks, fig)
-    displayDavid(os.path.join(dirD, file), powerCap, numTasks, fig, ax)
+    ax = dsplyN(os.path.join(dirN, file), fig, powerCap, 3, 1, 1)
+    dsply(os.path.join(dirD, file), fig, powerCap, 3, 1, 2, ax)
+    dsply(os.path.join(dirR, file), fig, powerCap, 3, 1, 3, ax)
     save_figure(fig, file)
     
 
-for numTasks in range(1,28):
-    for powerCap in range(100, 10100, 100):
-        display(directoryN, directoryD, powerCap, numTasks)
+for numTasks in range(1,27):
+    for powerCap in range(100, 6600, 100):
+        
+        display(directoryN, directoryD, directoryR, powerCap, numTasks)
