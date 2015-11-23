@@ -161,6 +161,7 @@ def process_group(taskGroup, var):
 
 def pack_tasks(tasks, powerCap, current_power, startTime, longestTime):
     
+    print("packing while maintaining bound: ",longestTime)
     taskGroup = []
     remainingTasks = []
     tempcurrent_power = current_power
@@ -174,6 +175,9 @@ def pack_tasks(tasks, powerCap, current_power, startTime, longestTime):
                 task.endTime = startTime + task.time
                 taskGroup.append(task)
             else:
+                
+                print(task.index, "is within power but exceeds bound by", startTime + task.time - longestTime)
+                tempcurrent_power -= task.requiredPower
                 remainingTasks.append(taskFile)
             
             
@@ -193,25 +197,37 @@ def assign_powers(taskGroup, current_power):
         current_power += task.requiredPower
     return taskGroup
 
-def recursive_sim(tasks, current_power, powerCap, startTime, remainingTasks, longestTime, initialPowerCap, buff, prevtaskGroup, debug=False, bound = 2):
+def recursive_sim(tasks, current_power, powerCap, startTime, remainingTasks, longestTime, initialPowerCap, buff, prevtaskGroup, boundedTime, debug=False,  bound = 2, version = 1):
+    #print("version: ",version)
     thislongestTime = longestTime
+    if(version == 3):
+        boundedTime = longestTime * bound
+    elif(version == 2):
+        if(len(prevtaskGroup) == 0):
+            boundedTime = 0
     if(len(remainingTasks) > 0):
         if(debug):
-            print("passing current power to get group:", current_power, "and longestTime bound: ",longestTime * bound)
-        taskGroup, remainingTasks, current_pow = pack_tasks(tasks, powerCap, current_power, startTime, longestTime * bound)
+            print("passing current power to get group:", current_power, "and longestTime bound: ", boundedTime)
+        taskGroup, remainingTasks, current_pow = pack_tasks(tasks, powerCap, current_power, startTime, boundedTime)
         if(debug):
             print("initial: "+str(len(tasks))+", packed tasks: "+str(len(taskGroup)) + ", remaining: "+str(len(remainingTasks)), current_pow, current_power)
         
         if(len(taskGroup) > 0 and taskGroup != None):
-            
+            if(debug):
+                print("longestTime before assigning to prevtg:", longestTime)
             taskGroup = sort_tasks(taskGroup)
             taskGroup = assign_powers(taskGroup, current_power)
-            if(len(prevtaskGroup) == 0):
-                longestTime = 0
-            else:
-                longestTime = prevtaskGroup[len(prevtaskGroup)-1].endTime
+            #if(len(prevtaskGroup) == 0):
+            #    longestTime = 0
+            #else:
+            #    longestTime = prevtaskGroup[len(prevtaskGroup)-1].endTime
             
             thislongestTime = taskGroup[len(taskGroup)-1].endTime
+            if(version == 2):
+                if(len(prevtaskGroup) == 0):
+                    boundedTime = thislongestTime * bound
+                    if(debug):
+                        print("setting bounded time to:", boundedTime)
             if(thislongestTime > longestTime): #alternatively, do not schedule task if it is exceeding the longest time already for the first round...
                 longestTime = thislongestTime
             if(debug):
@@ -225,11 +241,15 @@ def recursive_sim(tasks, current_power, powerCap, startTime, remainingTasks, lon
             groupCurrentPower = 0
             i = 0
             for task in taskGroup:
-                newPowerCap = 0.0
-                if(i == len(taskGroup) -1):
-                    newPowerCap = powerCap
-                else:
-                    newPowerCap = task.requiredPower + previousPower
+                newPowerCap = task.requiredPower + previousPower
+                if(version == 3 or version == 2):
+                    if(i == len(taskGroup) -1):
+                        newPowerCap = powerCap
+                elif(version == 1):
+                    if(len(prevtaskGroup) == 0):
+                        if(i == len(taskGroup) - 1):
+                            newPowerCap = powerCap
+                    
                 if(groupCurrentPower == 0 and i != 0):
                     
                     for task2 in taskGroup[:i]:
@@ -237,13 +257,13 @@ def recursive_sim(tasks, current_power, powerCap, startTime, remainingTasks, lon
                     current_power = groupCurrentPower
                     
                 if(debug):
-                    print("Task", task.index, "sending powercap: ", newPowerCap, "and got powercap:",powerCap, "with initial: ", initialPowerCap, "but this much power consumed: ",current_power, "with ", len(remainingTasks),"remaining tasks")
+                    print("Task", task.index, "sending powercap: ", newPowerCap, "and got powercap:",powerCap, "with initial: ", initialPowerCap, "but this much power consumed: ",current_power, "with ", len(remainingTasks),"remaining tasks and current longest time:", longestTime)
                 task.currentPower = current_power
                 if(len(taskGroup) > 1):
                     initialPowerCap = powerCap
                 if(debug):
                     print("looping from "+str(len(taskGroup)) + " tasks. inserting " + str(len(remainingTasks)) + " remaining tasks")
-                b, currentPow, remainingTasks, longestTime = recursive_sim(remainingTasks, current_power, newPowerCap, task.endTime, remainingTasks, longestTime, initialPowerCap, buff, taskGroup, debug)
+                b, currentPow, remainingTasks, longestTime = recursive_sim(remainingTasks, current_power, newPowerCap, task.endTime, remainingTasks, longestTime, initialPowerCap, buff, taskGroup, boundedTime, debug,  bound = bound, version = version)
                 buff += b
                 
                 
@@ -263,7 +283,7 @@ def recursive_sim(tasks, current_power, powerCap, startTime, remainingTasks, lon
                 if(debug):
                     print("there are still remaining tasks. the initial power cap is: ", initialPowerCap, current_pow, "longest: ", longestTime, thislongestTime)
                 if(len(prevtaskGroup) == 0):
-                    b, current_pow, remainingTasks, longestTime = recursive_sim(remainingTasks, 0, initialPowerCap, longestTime, remainingTasks, 0, initialPowerCap, buff, [], debug)
+                    b, current_pow, remainingTasks, longestTime = recursive_sim(remainingTasks, 0, initialPowerCap, longestTime, remainingTasks, 0, initialPowerCap, buff, [], boundedTime, debug, bound = bound, version = version)
                     buff += b
                 return buff, current_pow, remainingTasks, longestTime
             return buff, current_power, remainingTasks, longestTime
@@ -289,7 +309,8 @@ def david_simulator(tasks, numTasks, powerCap):
     longestTime = 0
     groupLongestTime = 0
     packedTasks = []
-    while(len(packedTasks) != len(tasks)):
+    unschedulable = []
+    while(len(packedTasks) != len(tasks) - len(unschedulable)):
         
         for taskFile in tasks:
             task = get_pace(taskFile)
@@ -335,8 +356,10 @@ def david_simulator(tasks, numTasks, powerCap):
                     longestTime = task.endTime
                     #print("packed in new task group", task.index, len(packedTasks), currentPower)
                 else:
+                    #print(task.index, "requires",task.requiredPower,"so cannot be scheduled")
                     outFileBuff+= ""#new_empty_line(task, longestTime)
-                    return ""
+                    unschedulable.append(task)
+                    #return ""
                 
         if(len(taskGroup) > 0):
             outFileBuff += process_group(taskGroup, longestTime)
@@ -371,20 +394,32 @@ for numTasks in range(1, 28):
 
 #powerCap = 1000
     for powerCap in range(100, 6600, 100):
-        print(numTasks, powerCap)
-        buff, cp, var, lt = recursive_sim(tasks, 0, powerCap, 0, tasks, 0, powerCap, "", [], False)
+        #print(numTasks, powerCap)
+        
+        buff = ""
+        cp = 0
+        var = []
+        lt = 0
+        #if(numTasks == 24 and powerCap == 800):
+        #print("====================== 1 ======================")
+        buff, cp, var, lt = recursive_sim(tasks, 0, powerCap, 0, tasks, 0, powerCap, "", [], 0, False, version=3)
+        #print("====================== 2 ======================")
+        #buff, cp, var, lt = recursive_sim(tasks, 0, powerCap, 0, tasks, 0, powerCap, "", [], 0, True, version=2)
+        #print("====================== 3 ======================")
+        #buff, cp, var, lt = recursive_sim(tasks, 0, powerCap, 0, tasks, 0, powerCap, "", [], 0, True, version=3)
+
         #print(buff)
         nt = str(numTasks)
         if(numTasks > 8):
             nt = str(numTasks - 1)
-        #f = open(r"D:\Documents\Academics\Project\Project\outputFiles\recursive/"+str(powerCap)+"-"+nt,'w')
-        #f.write(buff)
-        #f.close()
+        f = open(r"D:\Documents\Academics\Project\Project\outputFiles\recursive\version3/"+str(powerCap)+"-"+nt,'w')
+        f.write(buff)
+        f.close()
         #outN = open(outDirNaive +"/"+ str(powerCap) + "-" + nt,'w')
         #name output file
-        outD = open(outDirDavid +"/"+ str(powerCap) + "-" + nt,'w')
+        #outD = open(outDirDavid +"/"+ str(powerCap) + "-" + nt,'w')
         
         #outN.write(naive_simulator(tasks, numTasks, powerCap))
         #outN.close()
-        outD.write(david_simulator(tasks, numTasks, powerCap)) 
-        outD.close()  
+        #outD.write(david_simulator(tasks, numTasks, powerCap)) 
+        #outD.close()  
